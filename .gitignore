@@ -21,3 +21,6 @@ assets/
 # Système et outils
 .DS_Store
 node_modules/
+
+# Réglages locaux de Claude Code
+.claude/

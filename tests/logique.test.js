@@ -169,6 +169,15 @@ test('état présent seulement si H = jour du cours', () => {
   assert.equal(L.coursDuJour(l, JOUR, AUJ).attendus[0].etat, 'present');
 });
 
+test('visiteur sans pré-inscription repéré par la trace en AB', () => {
+  const l = [ligne(3, { PRENOM: 'Sam', TELEPHONE: '0613131313', CRENEAU: 'mardi 29 septembre',
+    DATE_DEMANDE: D(2026, 9, 29), DATE_ESSAI: D(2026, 9, 29), VENU: 'Oui',
+    REMARQUES: 'Venu sans pré-inscription, saisi via app le 29/09 20:04' })];
+  const c = L.coursDuJour(l, JOUR, AUJ).attendus[0];
+  assert.equal(c.spontane, true);
+  assert.equal(c.etat, 'present');
+});
+
 /* ---------- Retrouver la ligne ---------- */
 
 test('trouverLigne : même téléphone, le prénom départage', () => {

@@ -4,6 +4,6 @@
   "private": true,
   "description": "Pointage des cours d'essai BKDL (web app iPhone + Google Apps Script)",
   "scripts": {
-    "test": "node --test tests/"
+    "test": "node --test tests/*.test.js"
   }
 }

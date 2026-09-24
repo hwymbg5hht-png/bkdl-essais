@@ -1,0 +1,421 @@
+/* BKDL Essais, charte graphique du club */
+
+:root {
+  --sumi: #14161A;
+  --indigo: #1D3557;
+  --indigo-profond: #122238;
+  --rouge-sceau: #B8342A;
+  --rouge-appui: #8D251D;
+  --paille: #C2AC86;
+  --ivoire: #F6F3ED;
+  --blanc: #FFFFFF;
+  --gris-texte: #4A5058;
+  --gris-filet: #E0E3E7;
+
+  --titre: 'Shippori Mincho', 'Hiragino Mincho ProN', serif;
+  --texte: 'Zen Kaku Gothic New', -apple-system, 'Helvetica Neue', sans-serif;
+
+  --marge: 16px;
+  --haut-barre: 88px;
+}
+
+* { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  background: var(--ivoire);
+  color: var(--sumi);
+  font-family: var(--texte);
+  font-size: 15px;
+  line-height: 1.4;
+  -webkit-tap-highlight-color: transparent;
+  padding-bottom: calc(var(--haut-barre) + env(safe-area-inset-bottom));
+}
+
+button { font-family: inherit; color: inherit; }
+
+/* ---------- En-tête ---------- */
+
+.entete {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--indigo-profond);
+  color: var(--blanc);
+  padding: env(safe-area-inset-top) calc(env(safe-area-inset-right) + 8px) 12px calc(env(safe-area-inset-left) + 8px);
+}
+
+.entete-haut {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 8px;
+}
+
+.entete-logo { height: 36px; width: auto; }
+
+.entete-sous-titre {
+  flex: 1;
+  margin: 0;
+  color: var(--paille);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.entete-date {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.date-cours {
+  flex: 1;
+  min-height: 44px;
+  background: none;
+  border: 0;
+  color: var(--blanc);
+  font-family: var(--titre);
+  font-weight: 800;
+  font-size: clamp(21px, 6.2vw, 26px);
+  line-height: 1.15;
+  text-align: center;
+  padding: 0 4px;
+}
+
+.choix-date {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+  width: 1px;
+  height: 1px;
+}
+
+.bouton-icone {
+  width: 44px;
+  height: 44px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  background: none;
+  border: 0;
+  border-radius: 4px;
+  padding: 0;
+}
+.bouton-icone:active { background: rgba(255, 255, 255, .12); }
+.bouton-icone:disabled { opacity: .3; }
+
+.compteur {
+  margin: 4px 0 0;
+  text-align: center;
+  font-size: 15px;
+  color: var(--blanc);
+}
+.compteur b {
+  font-family: var(--titre);
+  font-weight: 800;
+  font-size: 22px;
+  color: var(--paille);
+  margin-right: 3px;
+}
+.compteur .sep { color: var(--paille); margin: 0 6px; }
+
+/* ---------- Contenu ---------- */
+
+.contenu {
+  padding: 12px calc(env(safe-area-inset-right) + var(--marge)) 24px calc(env(safe-area-inset-left) + var(--marge));
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+.recherche {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--blanc);
+  border: 1px solid var(--gris-filet);
+  border-radius: 5px;
+  padding: 0 12px;
+  min-height: 48px;
+}
+.recherche input {
+  flex: 1;
+  border: 0;
+  outline: 0;
+  background: none;
+  font-family: inherit;
+  font-size: 16px; /* 16 px minimum : iOS ne zoome pas */
+  color: var(--sumi);
+  min-height: 46px;
+}
+.recherche:focus-within { border-color: var(--indigo); }
+
+.etat-lecture {
+  margin: 8px 0 4px;
+  font-size: 13px;
+  color: var(--gris-texte);
+}
+.etat-lecture button {
+  background: none;
+  border: 0;
+  padding: 10px 4px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--indigo);
+  text-decoration: underline;
+}
+
+.bandeau {
+  margin-top: 12px;
+  padding: 12px 14px;
+  background: var(--blanc);
+  border: 1px solid var(--gris-filet);
+  border-left: 4px solid var(--indigo);
+  border-radius: 5px;
+  font-size: 15px;
+}
+.bandeau.erreur { border-left-color: var(--sumi); font-weight: 500; }
+
+.liste { display: grid; gap: 8px; }
+
+.vide {
+  text-align: center;
+  color: var(--gris-texte);
+  padding: 32px 8px;
+}
+.vide p { margin: 0 0 12px; }
+
+/* ---------- Carte d'une personne ---------- */
+
+.carte {
+  display: flex;
+  align-items: stretch;
+  background: var(--blanc);
+  border: 1px solid var(--gris-filet);
+  border-radius: 5px;
+  min-height: 80px;
+}
+
+.carte-infos {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 8px 4px 14px;
+}
+
+.prenom {
+  margin: 0;
+  font-size: 21px;
+  font-weight: 900;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+.nom {
+  display: inline-block;
+  font-size: 15px;
+  font-weight: 400;
+  color: var(--gris-texte);
+}
+
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+.badge {
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 4px 6px;
+  border: 1px solid var(--indigo);
+  border-radius: 4px;
+  color: var(--indigo);
+}
+.badge.doute { border-color: var(--gris-texte); border-style: dashed; color: var(--gris-texte); }
+
+.carte-bas {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 2px 0 0 -10px;
+}
+
+.origine {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.25;
+  color: var(--gris-texte);
+}
+
+.contacts { display: flex; flex: none; }
+.contacts a {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 4px;
+}
+.contacts a:active { background: var(--ivoire); }
+
+/* Bouton de pointage */
+.pointer {
+  flex: none;
+  width: 92px;
+  margin: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  background: var(--blanc);
+  border: 2px solid var(--indigo);
+  border-radius: 4px;
+  color: var(--indigo);
+  font-size: 17px;
+  font-weight: 900;
+  transition: background-color 150ms, color 150ms;
+}
+.pointer img { display: none; }
+.pointer:active { background: var(--ivoire); }
+
+.carte.present { border-color: var(--indigo); }
+.carte.present .pointer { background: var(--indigo); color: var(--blanc); }
+.carte.present .pointer img { display: block; }
+
+.carte.absent .pointer { border-color: var(--gris-filet); color: var(--gris-texte); }
+
+/* Groupes repliés : reportés ailleurs, annulés */
+.groupe { margin-top: 20px; }
+.groupe summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  font-weight: 700;
+  color: var(--gris-texte);
+  cursor: pointer;
+}
+.groupe .carte { min-height: 0; }
+.groupe .carte-infos { padding-bottom: 4px; }
+.groupe .prenom { font-size: 17px; }
+.groupe-annules .carte, #groupe-annules .carte { opacity: .6; }
+.nouvelle-date { margin: 4px 0 0; font-size: 15px; font-weight: 700; color: var(--indigo); }
+
+/* ---------- Barre du bas et boutons ---------- */
+
+.barre-action {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 10;
+  background: var(--ivoire);
+  border-top: 1px solid var(--gris-filet);
+  padding: 10px calc(env(safe-area-inset-right) + var(--marge)) calc(env(safe-area-inset-bottom) + 10px) calc(env(safe-area-inset-left) + var(--marge));
+}
+
+.bouton-principal {
+  display: block;
+  width: 100%;
+  max-width: 608px;
+  margin: 0 auto;
+  min-height: 56px;
+  background: var(--rouge-sceau);
+  color: var(--blanc);
+  border: 0;
+  border-bottom: 6px solid var(--rouge-appui);
+  border-radius: 4px;
+  font-size: 17px;
+  font-weight: 900;
+}
+.bouton-principal:active { background: var(--rouge-appui); }
+
+.bouton-secondaire {
+  display: block;
+  width: 100%;
+  min-height: 48px;
+  margin-top: 8px;
+  background: var(--blanc);
+  border: 2px solid var(--indigo);
+  border-radius: 4px;
+  color: var(--indigo);
+  font-size: 17px;
+  font-weight: 900;
+}
+.bouton-secondaire:active { background: var(--ivoire); }
+
+.bouton-lien {
+  display: block;
+  margin: 16px auto 0;
+  min-height: 44px;
+  background: none;
+  border: 0;
+  color: var(--gris-texte);
+  font-size: 15px;
+  text-decoration: underline;
+}
+
+/* ---------- Feuille coulissante (réglages) ---------- */
+
+.feuille {
+  width: 100%;
+  max-width: 640px;
+  margin: auto auto 0;
+  border: 0;
+  border-radius: 5px 5px 0 0;
+  padding: 20px calc(env(safe-area-inset-right) + var(--marge)) calc(env(safe-area-inset-bottom) + 20px) calc(env(safe-area-inset-left) + var(--marge));
+  background: var(--ivoire);
+  color: var(--sumi);
+  max-height: 92vh;
+  overflow-y: auto;
+}
+.feuille::backdrop { background: rgba(20, 22, 26, .55); }
+.feuille h2 {
+  margin: 0 0 16px;
+  font-family: var(--titre);
+  font-weight: 800;
+  font-size: 24px;
+}
+
+.champ { display: block; margin-bottom: 14px; }
+.champ span { display: block; font-weight: 700; margin-bottom: 4px; }
+.champ input {
+  width: 100%;
+  min-height: 48px;
+  padding: 0 12px;
+  border: 1px solid var(--gris-filet);
+  border-radius: 4px;
+  background: var(--blanc);
+  font-family: inherit;
+  font-size: 16px;
+  color: var(--sumi);
+}
+.champ input:focus { outline: 2px solid var(--indigo); outline-offset: -1px; }
+
+.message-reglages { min-height: 20px; margin: 0 0 12px; font-weight: 500; }
+
+/* ---------- Message temporaire ---------- */
+
+.toast {
+  position: fixed;
+  left: var(--marge);
+  right: var(--marge);
+  bottom: calc(var(--haut-barre) + env(safe-area-inset-bottom) + 8px);
+  z-index: 20;
+  max-width: 608px;
+  margin: 0 auto;
+  padding: 14px 16px;
+  background: var(--sumi);
+  color: var(--blanc);
+  border-radius: 5px;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pointer { transition: none; }
+}

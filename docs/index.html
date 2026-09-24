@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#122238">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="BKDL Essais">
+  <meta name="robots" content="noindex, nofollow">
+  <title>BKDL Essais</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@600;800&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap">
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <header class="entete">
+    <div class="entete-haut">
+      <img class="entete-logo" src="img/ecusson-256.png" alt="" width="30" height="36">
+      <p class="entete-sous-titre" id="sous-titre">Cours d'essai</p>
+      <button class="bouton-icone" id="bouton-reglages" type="button" aria-label="Réglages">
+        <img src="icones/22-reglages-blanc.svg" alt="" width="24" height="24">
+      </button>
+    </div>
+    <div class="entete-date">
+      <button class="bouton-icone" id="cours-precedent" type="button" aria-label="Cours précédent">
+        <img src="icones/20-precedent-blanc.svg" alt="" width="24" height="24">
+      </button>
+      <button class="date-cours" id="date-cours" type="button" aria-label="Choisir une autre date">…</button>
+      <input class="choix-date" id="choix-date" type="date" tabindex="-1" aria-hidden="true">
+      <button class="bouton-icone" id="cours-suivant" type="button" aria-label="Cours suivant">
+        <img src="icones/21-suivant-blanc.svg" alt="" width="24" height="24">
+      </button>
+    </div>
+    <p class="compteur" id="compteur" aria-live="polite"></p>
+  </header>
+
+  <main class="contenu">
+    <div class="recherche">
+      <img src="icones/19-recherche-sumi.svg" alt="" width="24" height="24">
+      <input id="recherche" type="search" placeholder="Prénom, nom ou 4 derniers chiffres"
+             autocomplete="off" autocorrect="off" spellcheck="false" aria-label="Chercher une personne">
+    </div>
+
+    <div class="bandeau" id="bandeau" hidden></div>
+    <p class="etat-lecture" id="etat-lecture"></p>
+
+    <section id="liste-attendus" class="liste" aria-label="Attendus"></section>
+
+    <details class="groupe" id="groupe-reportes" hidden>
+      <summary></summary>
+      <div class="liste" id="liste-reportes"></div>
+    </details>
+
+    <details class="groupe" id="groupe-annules" hidden>
+      <summary></summary>
+      <div class="liste" id="liste-annules"></div>
+    </details>
+  </main>
+
+  <footer class="barre-action">
+    <button class="bouton-principal" id="bouton-visiteur" type="button">Ajouter un visiteur</button>
+  </footer>
+
+  <dialog class="feuille" id="feuille-reglages" aria-labelledby="titre-reglages">
+    <form method="dialog" id="form-reglages">
+      <h2 id="titre-reglages">Réglages</h2>
+      <label class="champ">
+        <span>Adresse du script Google</span>
+        <input id="reglage-url" type="url" inputmode="url" autocomplete="off" autocapitalize="off"
+               placeholder="https://script.google.com/macros/s/…/exec" required>
+      </label>
+      <label class="champ">
+        <span>Code PIN</span>
+        <input id="reglage-pin" type="password" inputmode="numeric" autocomplete="off" required>
+      </label>
+      <p class="message-reglages" id="message-reglages" aria-live="polite"></p>
+      <button class="bouton-principal" type="submit" value="enregistrer">Enregistrer</button>
+      <button class="bouton-secondaire" type="button" id="bouton-tester">Tester la connexion</button>
+      <button class="bouton-secondaire" type="button" id="bouton-fermer-reglages">Fermer</button>
+      <button class="bouton-lien" type="button" id="bouton-vider">Vider les données de cet appareil</button>
+    </form>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

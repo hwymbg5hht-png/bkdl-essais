@@ -37,7 +37,7 @@ var MOIS_COURTS = { janv: 0, fev: 1, fevr: 1, avr: 3, juil: 6, sept: 8, oct: 9, 
 /** Enlève les accents, passe en minuscules, resserre les espaces. */
 function texteSimple(s) {
   if (s === null || s === undefined) return '';
-  return String(s).normalize('NFD').replace(/[̀-ͯ]/g, '')
+  return String(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     .toLowerCase().replace(/\s+/g, ' ').trim();
 }
 
@@ -319,6 +319,7 @@ function carte(l, jour, aujourdhui) {
     email: normaliserEmail(l.email),
     origine: String(l.origine || ''),
     etat: etat,
+    spontane: texteSimple(l.remarques).indexOf('sans pre-inscription') >= 0,
     dateAVerifier: !!(d.effective && d.effective.aVerifier),
     nouvelleDate: d.n ? cleJour(d.n.date) : '',
     badges: {
