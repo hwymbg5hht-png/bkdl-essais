@@ -1,0 +1,9 @@
+{
+  "name": "bkdl-essais",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Pointage des cours d'essai BKDL (web app iPhone + Google Apps Script)",
+  "scripts": {
+    "test": "node --test tests/"
+  }
+}

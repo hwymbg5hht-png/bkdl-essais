@@ -1,0 +1,23 @@
+# Aucune donnée personnelle dans le dépôt (il sera public sur GitHub Pages)
+*.csv
+*.tsv
+*.xlsx
+*.xls
+*.ods
+*.numbers
+donnees/
+exports/
+sauvegardes/
+
+# Sources de la charte (gros fichiers, les images utiles sont copiées dans docs/)
+assets/
+
+# Réglages locaux, identifiants, secrets
+.env
+*.local.*
+.clasp.json
+.clasprc.json
+
+# Système et outils
+.DS_Store
+node_modules/
