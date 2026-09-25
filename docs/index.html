@@ -57,6 +57,8 @@
       <summary></summary>
       <div class="liste" id="liste-annules"></div>
     </details>
+
+    <button class="bouton-lien" id="bouton-cloturer" type="button" hidden>Clôturer le cours</button>
   </main>
 
   <footer class="barre-action">
@@ -81,6 +83,15 @@
       <button class="bouton-secondaire" type="button" id="bouton-fermer-reglages">Fermer</button>
       <button class="bouton-lien" type="button" id="bouton-vider">Vider les données de cet appareil</button>
     </form>
+  </dialog>
+
+  <dialog class="feuille" id="feuille-resume" aria-labelledby="titre-resume">
+    <h2 id="titre-resume">Cours clôturé</h2>
+    <p class="resume-chiffres" id="resume-chiffres"></p>
+    <h3>Absents</h3>
+    <ul class="resume-absents" id="resume-absents"></ul>
+    <button class="bouton-secondaire" type="button" id="bouton-annuler-cloture">Annuler la clôture</button>
+    <button class="bouton-secondaire" type="button" id="bouton-fermer-resume">Fermer</button>
   </dialog>
 
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>

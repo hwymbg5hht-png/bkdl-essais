@@ -1,4 +1,4 @@
-/* BKDL Essais, fonctionnement de la page (étape 1 : lecture seule) */
+/* BKDL Essais, fonctionnement de la page (étape 2 : pointage et clôture) */
 'use strict';
 
 const CLE_REGLAGES = 'bkdl.reglages';
@@ -141,8 +141,9 @@ function afficher() {
   } else if (!liste.length) {
     zone.innerHTML = '<div class="vide"><p>Personne ne correspond à « ' + echapper(etat.recherche) + ' ».</p></div>';
   } else {
-    zone.innerHTML = liste.map(carteAttendu).join('');
+    zone.innerHTML = liste.map((c) => carteAttendu(c, attendus.indexOf(c))).join('');
   }
+  $('bouton-cloturer').hidden = !attendus.length;
 
   remplirGroupe('reportes', d.cours.reportes.filter(filtre), 'Reportés à une autre date');
   remplirGroupe('annules', d.cours.annules.filter(filtre), 'Annulés');
@@ -201,10 +202,11 @@ function infos(c) {
     '</div>';
 }
 
-function carteAttendu(c) {
+function carteAttendu(c, i) {
   const libelle = c.etat === 'present' ? 'Présent' : c.etat === 'absent' ? 'Absent' : 'Pointer';
-  return '<article class="carte ' + c.etat + '">' + infos(c) +
+  return '<article class="carte ' + c.etat + (c.enCours ? ' en-cours' : '') + '" data-i="' + i + '">' + infos(c) +
     '<button class="pointer" type="button" aria-pressed="' + (c.etat === 'present') + '"' +
+    (c.enCours ? ' disabled' : '') +
     ' aria-label="' + libelle + ' : ' + echapper(c.prenom) + '">' +
     '<img src="icones/13-validation-blanc.svg" alt="" width="28" height="28">' + libelle +
     '</button></article>';
@@ -238,12 +240,41 @@ function montrerBandeau(texte, erreur) {
 function masquerBandeau() { $('bandeau').hidden = true; }
 
 let minuterieToast;
-function toast(texte) {
+/**
+ * Message temporaire en bas de l'écran.
+ * annuler : fonction appelée si on touche « Annuler » (bouton visible 10 secondes)
+ */
+function toast(texte, annuler) {
   const t = $('toast');
-  t.textContent = texte;
+  t.innerHTML = '<span>' + echapper(texte) + '</span>' +
+    (annuler ? '<button type="button" class="toast-annuler">' +
+      '<img src="icones/23-annuler-blanc.svg" alt="" width="20" height="20">Annuler</button>' : '');
   t.hidden = false;
+  if (annuler) {
+    t.querySelector('button').addEventListener('click', () => {
+      t.hidden = true;
+      clearTimeout(minuterieToast);
+      annuler();
+    }, { once: true });
+  }
   clearTimeout(minuterieToast);
-  minuterieToast = setTimeout(() => { t.hidden = true; }, 3000);
+  minuterieToast = setTimeout(() => { t.hidden = true; }, annuler ? 10000 : 3000);
+}
+
+/** Petit retour haptique (iPhone récent : astuce de l'interrupteur, sinon vibration Android). */
+function vibrer() {
+  try {
+    if (navigator.vibrate) { navigator.vibrate(15); return; }
+    let l = document.getElementById('haptique');
+    if (!l) {
+      l = document.createElement('label');
+      l.id = 'haptique';
+      l.hidden = true;
+      l.innerHTML = '<input type="checkbox" switch>';
+      document.body.appendChild(l);
+    }
+    l.click();
+  } catch (e) { /* pas de retour haptique, tant pis */ }
 }
 
 /* ---------- Écran des réglages ---------- */
@@ -321,9 +352,125 @@ $('choix-date').addEventListener('change', (ev) => { if (ev.target.value) charge
 $('recherche').addEventListener('input', (ev) => { etat.recherche = ev.target.value; afficher(); });
 
 $('liste-attendus').addEventListener('click', (ev) => {
-  if (ev.target.closest('.pointer')) toast('Le pointage arrive à l\'étape 2.');
+  const bouton = ev.target.closest('.pointer');
+  if (!bouton || bouton.disabled) return;
+  const c = etat.donnees.cours.attendus[Number(bouton.closest('.carte').dataset.i)];
+  if (c.etat === 'present') retirer(c); else pointer(c);
 });
+$('bouton-cloturer').addEventListener('click', cloturer);
+$('bouton-fermer-resume').addEventListener('click', () => $('feuille-resume').close());
 $('bouton-visiteur').addEventListener('click', () => toast('L\'ajout d\'un visiteur arrive à l\'étape 3.'));
+
+/* ---------- Écritures dans le classeur ---------- */
+
+/**
+ * Lance une écriture pour une personne : la carte change tout de suite,
+ * et revient en arrière si le script refuse.
+ */
+async function ecrirePour(c, action, nouvelEtat, message) {
+  const ancienEtat = c.etat;
+  const jour = etat.jour;
+  c.etat = nouvelEtat;
+  c.enCours = true;
+  afficher();
+  try {
+    const r = await appeler(action, { cle: c.cle, jour });
+    c.enCours = false;
+    afficher();
+    if (r.changements.length) {
+      toast(message, () => annulerEcriture(r.changements, () => { c.etat = ancienEtat; }));
+    } else {
+      toast(r.message);
+    }
+  } catch (e) {
+    c.etat = ancienEtat;
+    c.enCours = false;
+    afficher();
+    montrerBandeau(e.message, true);
+  }
+}
+
+function pointer(c) {
+  vibrer();
+  ecrirePour(c, 'pointer', 'present', c.prenom + ' pointé présent.');
+}
+
+function retirer(c) {
+  if (!confirm('Retirer la présence de ' + c.prenom + ' ?')) return;
+  ecrirePour(c, 'retirer', 'attendu', 'Présence de ' + c.prenom + ' retirée.');
+}
+
+/** Remet les valeurs d'avant dans le classeur (bouton Annuler). */
+async function annulerEcriture(changements, retablir) {
+  try {
+    await appeler('annuler', { changements });
+    retablir();
+    afficher();
+    toast('Annulé.');
+  } catch (e) {
+    montrerBandeau(e.message, true);
+  }
+}
+
+/* ---------- Clôture du cours ---------- */
+
+async function cloturer() {
+  const attendus = etat.donnees.cours.attendus;
+  const aPasser = attendus.filter((c) => c.etat === 'attendu' && !c.badges.dejaVenu);
+  const texte = aPasser.length
+    ? 'Clôturer le cours ? ' + aPasser.map((c) => c.prenom).join(', ') +
+      (aPasser.length > 1 ? ' passeront' : ' passera') + ' à Absent dans le classeur.'
+    : 'Clôturer le cours ? Tout le monde est déjà pointé.';
+  if (!confirm(texte)) return;
+  const jour = etat.jour;
+  $('bouton-cloturer').disabled = true;
+  try {
+    const r = await appeler('cloturer', { jour });
+    if (jour === etat.jour) { etat.donnees.cours = r.cours; afficher(); }
+    montrerResume(r, jour);
+  } catch (e) {
+    montrerBandeau(e.message, true);
+  } finally {
+    $('bouton-cloturer').disabled = false;
+  }
+}
+
+function montrerResume(r, jour) {
+  const a = r.cours.attendus;
+  const presents = a.filter((c) => c.etat === 'present');
+  const absents = a.filter((c) => c.etat === 'absent');
+  const spontanes = a.filter((c) => c.spontane);
+  const date = dateEnToutesLettres(jour).toLowerCase();
+  $('resume-chiffres').innerHTML =
+    '<b>' + presents.length + '</b>' + (presents.length > 1 ? 'présents' : 'présent') +
+    '<span class="sep">·</span><b>' + absents.length + '</b>' + (absents.length > 1 ? 'absents' : 'absent') +
+    '<span class="sep">·</span><b>' + spontanes.length + '</b>sans inscription';
+  $('resume-absents').innerHTML = absents.length
+    ? absents.map((c) => {
+      const corps = 'Bonjour ' + c.prenom + ', on ne t\'a pas vu au cours d\'essai du ' + date +
+        '. Pas de souci ! Tu veux qu\'on te propose une autre date ? Dom, Bujinkan Kitamori Dôjô Lille';
+      return '<li><span>' + echapper(c.prenom + (c.nom ? ' ' + c.nom : '')) + '</span>' +
+        (c.cle.tel ? '<a class="bouton-sms" href="sms:' + c.cle.tel + '&body=' + encodeURIComponent(corps) + '">' +
+          '<img src="icones/16-message-sumi.svg" alt="" width="24" height="24">Proposer une date</a>' : '') +
+        '</li>';
+    }).join('')
+    : '<li class="vide-resume">Aucun absent.</li>';
+  const boutonAnnuler = $('bouton-annuler-cloture');
+  boutonAnnuler.hidden = !r.changements.length;
+  boutonAnnuler.onclick = async () => {
+    boutonAnnuler.hidden = true;
+    $('feuille-resume').close();
+    try {
+      await appeler('annuler', { changements: r.changements });
+      toast('Clôture annulée.');
+    } catch (e) {
+      montrerBandeau(e.message, true);
+    }
+    charger(etat.jour);
+  };
+  setTimeout(() => { boutonAnnuler.hidden = true; }, 10000);
+  $('feuille-resume').showModal();
+}
 
 /* ---------- Démarrage ---------- */
 

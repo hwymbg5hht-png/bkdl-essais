@@ -310,7 +310,7 @@ function carte(l, jour, aujourdhui) {
   var venu = texteSimple(l.venu);
   var etat = 'attendu';
   if (venu === 'oui' && h === jour) etat = 'present';
-  else if (venu === 'non' && (h === jour || h === '')) etat = 'absent';
+  else if (venu === 'non') etat = 'absent';
   return {
     cle: { tel: normaliserTelephone(l.telephone), email: normaliserEmail(l.email), prenom: l.prenom },
     prenom: l.prenom,

@@ -9,10 +9,17 @@
  *   PIN          le code à 4 chiffres ou plus saisi sur l'iPhone
  *   ID_CLASSEUR  l'identifiant du classeur (d'abord la copie TEST, puis le vrai)
  *
- * Étape 1 : lecture seule. Ce script n'écrit rien dans le classeur.
+ * Règles d'écriture (ne jamais les assouplir) :
+ *   - la ligne d'une personne est retrouvée à chaque écriture par téléphone,
+ *     à défaut email, avec le prénom en contrôle (le classeur est retrié chaque jour)
+ *   - un verrou empêche deux écritures en même temps
+ *   - écriture cellule par cellule, seulement H, O et AB à cette étape
+ *   - G, P, Q, R ne sont jamais touchées
+ *   - chaque changement est noté dans l'onglet « Journal app »
  */
 
-var VERSION = '1';
+var VERSION = '2';
+var ONGLET_JOURNAL = 'Journal app';
 var ONGLET_SUIVI = 'Suivi des demandes';
 var ONGLET_LISTES = 'Listes';
 var ESSAIS_PIN_MAX = 5;          // après 5 PIN faux...
@@ -63,6 +70,10 @@ function traiter(demande) {
   switch (demande.action) {
     case 'test': return actionTest();
     case 'cours': return actionCours(demande);
+    case 'pointer': return actionPointer(demande);
+    case 'retirer': return actionRetirer(demande);
+    case 'cloturer': return actionCloturer(demande);
+    case 'annuler': return actionAnnuler(demande);
     default: throw new Error('Action inconnue : ' + demande.action);
   }
 }
@@ -104,6 +115,239 @@ function actionCours(demande) {
   };
 }
 
+/* ---------- Écritures ---------- */
+
+/**
+ * Pointe une personne présente : H = jour du cours, O = Oui, trace en AB.
+ * demande : { cle: { tel, email, prenom }, jour }
+ */
+function actionPointer(demande) {
+  var jour = jourValide(demande.jour);
+  return avecVerrou(function (onglet, lignes) {
+    var l = ligneDe(lignes, demande.cle, jour);
+    var dateCours = dateDepuisCle(jour);
+    var hActuel = estDateValide(l.dateEssai) ? cleJour(l.dateEssai) : '';
+    if (estOui(l.venu) && hActuel === jour) {
+      return { ok: true, message: l.prenom + ' était déjà pointé présent.', changements: [] };
+    }
+    var trace = 'Pointé présent via app le ' + horodatage();
+    if (l.dateEssai !== '' && hActuel !== jour) trace += ' (H valait ' + texteCellule(l.dateEssai) + ')';
+    var changements = ecrire(onglet, l, jour, 'pointer', [
+      [COL.DATE_ESSAI, dateCours],
+      [COL.VENU, 'Oui'],
+      [COL.REMARQUES, ajouterRemarque(l.remarques, trace)]
+    ]);
+    return { ok: true, message: l.prenom + ' pointé présent.', changements: changements };
+  });
+}
+
+/** Retire une présence pointée par erreur : O vidé, H vidé s'il vaut le jour du cours. */
+function actionRetirer(demande) {
+  var jour = jourValide(demande.jour);
+  return avecVerrou(function (onglet, lignes) {
+    var l = ligneDe(lignes, demande.cle, jour);
+    var hActuel = estDateValide(l.dateEssai) ? cleJour(l.dateEssai) : '';
+    var cellules = [[COL.VENU, '']];
+    if (hActuel === jour) cellules.unshift([COL.DATE_ESSAI, '']);
+    cellules.push([COL.REMARQUES, ajouterRemarque(l.remarques, 'Présence retirée via app le ' + horodatage())]);
+    var changements = ecrire(onglet, l, jour, 'retirer', cellules);
+    return { ok: true, message: 'Présence de ' + l.prenom + ' retirée.', changements: changements };
+  });
+}
+
+/**
+ * Clôture le cours : O = Non pour chaque attendu du jour non pointé.
+ * Jamais pour les annulés, les reportés ailleurs, ni si O est déjà rempli.
+ */
+function actionCloturer(demande) {
+  var jour = jourValide(demande.jour);
+  var aujourdhui = aMinuit(new Date());
+  return avecVerrou(function (onglet, lignes) {
+    var changements = [];
+    var trace = 'Absent au cours du ' + formaterJourMois(dateDepuisCle(jour)) +
+      ', clôture via app le ' + horodatage();
+    lignes.forEach(function (l) {
+      if (!ligneUtile(l)) return;
+      if (classerLigne(l, jour, aujourdhui) !== 'attendu') return;
+      if (texteSimple(l.venu) !== '') return;
+      changements = changements.concat(ecrire(onglet, l, jour, 'cloturer', [
+        [COL.VENU, 'Non'],
+        [COL.REMARQUES, ajouterRemarque(l.remarques, trace)]
+      ]));
+    });
+    var cours = coursDuJour(lireToutesLesLignes(onglet), jour, aujourdhui);
+    return {
+      ok: true,
+      changements: changements,
+      cours: cours,
+      message: changements.length ? 'Cours clôturé.' : 'Rien à clôturer : tout le monde est déjà pointé.'
+    };
+  });
+}
+
+/**
+ * Annule une action récente : remet exactement les valeurs d'avant,
+ * seulement si personne n'a modifié ces cellules entre-temps.
+ * demande.changements : la liste renvoyée par l'action à annuler
+ */
+function actionAnnuler(demande) {
+  var liste = demande.changements || [];
+  if (!liste.length) return { ok: true, message: 'Rien à annuler.', changements: [] };
+  return avecVerrou(function (onglet, lignes) {
+    // 1. On retrouve chaque ligne et on vérifie que rien n'a bougé
+    var aRemettre = liste.map(function (c) {
+      var l = ligneDe(lignes, c.cle, c.jour);
+      var actuel = serialiser(onglet.getRange(l.numeroLigne, c.col).getValue());
+      if (JSON.stringify(actuel) !== JSON.stringify(c.apres)) {
+        throw new Error('Impossible d\'annuler : la ligne de ' + l.prenom +
+          ' a été modifiée entre-temps. Corrige directement dans le classeur.');
+      }
+      return { l: l, c: c };
+    });
+    // 2. On remet les anciennes valeurs, cellule par cellule
+    aRemettre.forEach(function (x) {
+      verifierLigneInchangee(onglet, x.l);
+      ecrireCellule(onglet, x.l.numeroLigne, x.c.col, deserialiser(x.c.avant));
+      journaliser('annuler', x.l, x.c.col, x.c.apres, x.c.avant);
+    });
+    return { ok: true, message: 'Annulé.', changements: [] };
+  });
+}
+
+/* ---------- Outils d'écriture ---------- */
+
+/**
+ * Relit le classeur sous verrou puis exécute l'écriture.
+ * Le verrou empêche deux écritures simultanées (deux téléphones, deux clics).
+ */
+function avecVerrou(fn) {
+  var verrou = LockService.getScriptLock();
+  if (!verrou.tryLock(15000)) throw new Error('Le classeur est occupé, réessaie dans quelques secondes.');
+  try {
+    var onglet = ongletSuivi(ouvrirClasseur());
+    return fn(onglet, lireToutesLesLignes(onglet));
+  } finally {
+    SpreadsheetApp.flush();
+    verrou.releaseLock();
+  }
+}
+
+function ligneDe(lignes, cle, jour) {
+  if (!cle || !cle.prenom) throw new Error('Personne non précisée.');
+  var r = trouverLigne(lignes, { tel: cle.tel, email: cle.email, prenom: cle.prenom, jour: jour }, aMinuit(new Date()));
+  if (!r.ok) throw new Error(r.message);
+  return r.ligne;
+}
+
+function jourValide(jour) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(jour || '')) throw new Error('Date du cours manquante.');
+  return jour;
+}
+
+/**
+ * Écrit quelques cellules d'une ligne, une par une, et renvoie
+ * de quoi annuler : [{ cle, jour, col, avant, apres }].
+ */
+function ecrire(onglet, l, jour, action, cellules) {
+  verifierLigneInchangee(onglet, l);
+  var cle = { tel: normaliserTelephone(l.telephone), email: normaliserEmail(l.email), prenom: l.prenom };
+  var changements = [];
+  cellules.forEach(function (x) {
+    var col = x[0], valeur = x[1];
+    if (colonnesInterdites().indexOf(col) >= 0) throw new Error('Écriture interdite en colonne ' + col);
+    var avant = onglet.getRange(l.numeroLigne, col).getValue();
+    if (JSON.stringify(serialiser(avant)) === JSON.stringify(serialiser(valeur))) return;
+    ecrireCellule(onglet, l.numeroLigne, col, valeur);
+    journaliser(action, l, col, serialiser(avant), serialiser(valeur));
+    changements.push({ cle: cle, jour: jour, col: col, avant: serialiser(avant), apres: serialiser(valeur) });
+  });
+  return changements;
+}
+
+/**
+ * Colonnes que l'app ne doit jamais modifier sur une ligne existante.
+ * (Une fonction et pas une variable : le fichier Logique, qui définit COL,
+ * est chargé après celui-ci.)
+ */
+function colonnesInterdites() {
+  return [COL.N, COL.CRENEAU, COL.DELAI, COL.ORIGINE, COL.UTM_SOURCE, COL.UTM_CAMPAGNE];
+}
+
+/** Une seule cellule, jamais un bloc. Les dates sont affichées en j/m/aaaa. */
+function ecrireCellule(onglet, ligne, col, valeur) {
+  var cellule = onglet.getRange(ligne, col);
+  if (estDateValide(valeur)) cellule.setNumberFormat('d/m/yyyy');
+  cellule.setValue(valeur);
+}
+
+/**
+ * Dernier contrôle juste avant d'écrire : la ligne a-t-elle bougé
+ * depuis la lecture (retri par une automatisation) ?
+ */
+function verifierLigneInchangee(onglet, l) {
+  var v = onglet.getRange(l.numeroLigne, COL.PRENOM, 1, 4).getValues()[0]; // C à F
+  var memeTel = normaliserTelephone(v[2]) === normaliserTelephone(l.telephone);
+  var memeEmail = normaliserEmail(v[3]) === normaliserEmail(l.email);
+  if (!prenomsEgaux(v[0], l.prenom) || !memeTel || !memeEmail) {
+    throw new Error('Le classeur vient d\'être retrié. Rien n\'a été écrit, réessaie.');
+  }
+}
+
+/** Ajoute une trace à la fin des remarques, sans jamais effacer l'existant. */
+function ajouterRemarque(existant, trace) {
+  var t = String(existant || '').trim();
+  return t ? t + ' | ' + trace : trace;
+}
+
+function horodatage() {
+  return Utilities.formatDate(new Date(), 'Europe/Paris', "dd/MM HH'h'mm");
+}
+
+function texteCellule(v) {
+  return estDateValide(v) ? Utilities.formatDate(v, 'Europe/Paris', 'd/M/yyyy') : String(v);
+}
+
+/** Valeur de cellule transportable jusqu'au téléphone et retour. */
+function serialiser(v) {
+  if (estDateValide(v)) return { date: cleJour(v) };
+  return v === undefined || v === null ? '' : v;
+}
+
+function deserialiser(v) {
+  return v && typeof v === 'object' && v.date ? dateDepuisCle(v.date) : v;
+}
+
+/* ---------- Journal ---------- */
+
+var ENTETES_JOURNAL = ['Horodatage', 'Action', 'Prénom', 'Téléphone', 'Email',
+  'Ligne au moment de l\'écriture', 'Colonne', 'Avant', 'Après'];
+
+/** Une ligne par cellule modifiée, pour pouvoir réparer une erreur à la main. */
+function journaliser(action, l, col, avant, apres) {
+  var classeur = ouvrirClasseur();
+  var journal = classeur.getSheetByName(ONGLET_JOURNAL);
+  if (!journal) {
+    journal = classeur.insertSheet(ONGLET_JOURNAL);
+    journal.appendRow(ENTETES_JOURNAL);
+    journal.setFrozenRows(1);
+  }
+  journal.appendRow([
+    Utilities.formatDate(new Date(), 'Europe/Paris', 'dd/MM/yyyy HH:mm:ss'),
+    action, l.prenom, "'" + formaterTelephone(l.telephone), normaliserEmail(l.email),
+    l.numeroLigne, lettreColonne(col), texteJournal(avant), texteJournal(apres)
+  ]);
+}
+
+function texteJournal(v) {
+  return v && typeof v === 'object' && v.date ? v.date : String(v);
+}
+
+function lettreColonne(col) {
+  var s = '';
+  while (col > 0) { var r = (col - 1) % 26; s = String.fromCharCode(65 + r) + s; col = Math.floor((col - 1) / 26); }
+  return s;
+}
+
 /* ---------- Sécurité ---------- */
 
 function verifierPin(pin) {
@@ -123,11 +367,15 @@ function verifierPin(pin) {
 
 /* ---------- Classeur ---------- */
 
+var classeurOuvert = null; // ouvert une seule fois par demande
+
 function ouvrirClasseur() {
+  if (classeurOuvert) return classeurOuvert;
   var id = PropertiesService.getScriptProperties().getProperty('ID_CLASSEUR');
   if (!id) throw new Error('L\'identifiant du classeur n\'est pas défini dans les Propriétés du script.');
   try {
-    return SpreadsheetApp.openById(id.trim());
+    classeurOuvert = SpreadsheetApp.openById(id.trim());
+    return classeurOuvert;
   } catch (err) {
     throw new Error('Impossible d\'ouvrir le classeur. Vérifie ID_CLASSEUR dans les Propriétés du script.');
   }
