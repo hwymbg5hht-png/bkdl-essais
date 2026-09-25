@@ -236,3 +236,12 @@ test('chercherDoublons : par téléphone ou email', () => {
   const d = L.chercherDoublons(jeuDeTest(), '+33 6 11 11 11 11', '');
   assert.deepEqual(d.map(x => x.prenom), ['Zoé']);
 });
+
+test('venu un autre jour que prévu : affiché le jour où il est venu', () => {
+  const l = [ligne(3, { PRENOM: 'Yann', TELEPHONE: '0614141414', CRENEAU: 'mardi 6 octobre',
+    DATE_DEMANDE: D(2026, 9, 20), DATE_ESSAI: D(2026, 9, 29), VENU: 'Oui' })];
+  const c = L.coursDuJour(l, JOUR, AUJ);
+  assert.equal(c.attendus.length, 1);
+  assert.equal(c.attendus[0].etat, 'present');
+  assert.ok(L.datesDeCours(l, AUJ).includes(JOUR));
+});

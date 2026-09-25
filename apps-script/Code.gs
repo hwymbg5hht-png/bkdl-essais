@@ -13,12 +13,13 @@
  *   - la ligne d'une personne est retrouvée à chaque écriture par téléphone,
  *     à défaut email, avec le prénom en contrôle (le classeur est retrié chaque jour)
  *   - un verrou empêche deux écritures en même temps
- *   - écriture cellule par cellule, seulement H, O et AB à cette étape
- *   - G, P, Q, R ne sont jamais touchées
+ *   - écriture cellule par cellule, seulement H, O et AB sur une ligne existante
+ *   - G, P, Q, R ne sont jamais touchées sur une ligne existante
+ *   - un visiteur sans pré-inscription crée une ligne neuve en fin d'onglet
  *   - chaque changement est noté dans l'onglet « Journal app »
  */
 
-var VERSION = '2';
+var VERSION = '3';
 var ONGLET_JOURNAL = 'Journal app';
 var ONGLET_SUIVI = 'Suivi des demandes';
 var ONGLET_LISTES = 'Listes';
@@ -74,6 +75,7 @@ function traiter(demande) {
     case 'retirer': return actionRetirer(demande);
     case 'cloturer': return actionCloturer(demande);
     case 'annuler': return actionAnnuler(demande);
+    case 'visiteur': return actionVisiteur(demande);
     default: throw new Error('Action inconnue : ' + demande.action);
   }
 }
@@ -197,21 +199,136 @@ function actionAnnuler(demande) {
     // 1. On retrouve chaque ligne et on vérifie que rien n'a bougé
     var aRemettre = liste.map(function (c) {
       var l = ligneDe(lignes, c.cle, c.jour);
+      var formule = c.apres && typeof c.apres === 'object' && c.apres.formule;
       var actuel = serialiser(onglet.getRange(l.numeroLigne, c.col).getValue());
-      if (JSON.stringify(actuel) !== JSON.stringify(c.apres)) {
+      if (!formule && JSON.stringify(actuel) !== JSON.stringify(c.apres)) {
         throw new Error('Impossible d\'annuler : la ligne de ' + l.prenom +
           ' a été modifiée entre-temps. Corrige directement dans le classeur.');
       }
+      verifierLigneInchangee(onglet, l);
       return { l: l, c: c };
     });
     // 2. On remet les anciennes valeurs, cellule par cellule
     aRemettre.forEach(function (x) {
-      verifierLigneInchangee(onglet, x.l);
+      var formule = x.c.apres && typeof x.c.apres === 'object' && x.c.apres.formule;
+      if (formule) {
+        onglet.getRange(x.l.numeroLigne, x.c.col).setValue('');
+        journaliser('annuler', x.l, x.c.col, 'formule du délai', '');
+        return;
+      }
       ecrireCellule(onglet, x.l.numeroLigne, x.c.col, deserialiser(x.c.avant));
       journaliser('annuler', x.l, x.c.col, x.c.apres, x.c.avant);
     });
     return { ok: true, message: 'Annulé.', changements: [] };
   });
+}
+
+/* ---------- Visiteur sans pré-inscription ---------- */
+
+/**
+ * Enregistre une personne venue sans pré-inscription, déjà présente.
+ * demande : { prenom, nom, tel, email, origine, seize: 'Oui'|'Non', jour, forcer }
+ *
+ * Si le téléphone ou l'email existe déjà dans le suivi, rien n'est créé :
+ * on renvoie les lignes trouvées pour proposer de pointer la personne
+ * existante. forcer = true crée quand même (deux personnes, un seul téléphone).
+ */
+function actionVisiteur(demande) {
+  var jour = jourValide(demande.jour);
+  var prenom = String(demande.prenom || '').trim();
+  var nom = String(demande.nom || '').trim();
+  var tel = normaliserTelephone(demande.tel);
+  var email = normaliserEmail(demande.email);
+  var origine = String(demande.origine || '').trim();
+  if (!prenom) throw new Error('Le prénom est obligatoire.');
+  if (!tel) throw new Error('Le téléphone doit avoir 10 chiffres.');
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('L\'email n\'est pas valable.');
+  var classeur = ouvrirClasseur();
+  if (lireListes(classeur).Origine.indexOf(origine) < 0) {
+    throw new Error('Choisis comment la personne a connu le club dans la liste.');
+  }
+  if (demande.seize !== 'Oui' && demande.seize !== 'Non') throw new Error('Précise si la personne a 16 ans ou plus.');
+
+  return avecVerrou(function (onglet, lignes) {
+    // 1. Déjà dans le suivi ?
+    var doublons = chercherDoublons(lignes, tel, email);
+    if (doublons.length && !demande.forcer) {
+      return {
+        ok: true,
+        cree: false,
+        doublons: doublons.map(function (l) {
+          var d = datesDeLaLigne(l, aMinuit(new Date())).effective;
+          return {
+            cle: { tel: normaliserTelephone(l.telephone), email: normaliserEmail(l.email), prenom: l.prenom },
+            prenom: l.prenom,
+            nom: l.nom,
+            dateDemande: estDateValide(l.dateDemande) ? formaterJourMois(l.dateDemande) : '',
+            dateEssai: d ? cleJour(d.date) : '',
+            memeTelephone: normaliserTelephone(l.telephone) === tel
+          };
+        })
+      };
+    }
+
+    // 2. Première ligne libre après la dernière ligne remplie
+    var numero = premiereLigneLibre(onglet, lignes);
+    var dateCours = dateDepuisCle(jour);
+    var trace = 'Venu sans pré-inscription, saisi via app le ' + horodatage() +
+      (demande.seize === 'Non' ? ', moins de 16 ans : autorisation parentale papier à faire signer' : '');
+    var l = { numeroLigne: numero, prenom: prenom, telephone: tel, email: email };
+
+    // 3. Écriture cellule par cellule (Q et R restent vides)
+    var cellules = [
+      [COL.DATE_DEMANDE, dateCours],
+      [COL.PRENOM, prenom],
+      [COL.NOM, nom],
+      [COL.TELEPHONE, formaterTelephone(tel)],
+      [COL.EMAIL, email],
+      [COL.CRENEAU, formaterCreneau(dateCours)],
+      [COL.DATE_ESSAI, dateCours],
+      [COL.VENU, 'Oui'],
+      [COL.ORIGINE, origine],
+      [COL.REMARQUES, trace]
+    ];
+    var cle = { tel: tel, email: email, prenom: prenom };
+    var changements = [];
+    cellules.forEach(function (x) {
+      if (x[1] === '') return;
+      var cellule = onglet.getRange(numero, x[0]);
+      if (x[0] === COL.TELEPHONE || x[0] === COL.CRENEAU) cellule.setNumberFormat('@'); // texte : garde le 0 et la date écrite
+      ecrireCellule(onglet, numero, x[0], x[1]);
+      journaliser('visiteur', l, x[0], '', serialiser(x[1]));
+      changements.push({ cle: cle, jour: jour, col: x[0], avant: '', apres: serialiser(x[1]) });
+    });
+    // Formule du délai en I, seulement sur cette ligne neuve
+    onglet.getRange(numero, COL.DELAI).setFormula(
+      '=IF(AND(B' + numero + '<>"",H' + numero + '<>""),H' + numero + '-B' + numero + ',"")');
+    journaliser('visiteur', l, COL.DELAI, '', 'formule du délai');
+    changements.push({ cle: cle, jour: jour, col: COL.DELAI, avant: '', apres: { formule: true } });
+
+    return {
+      ok: true,
+      cree: true,
+      message: prenom + ' ajouté et pointé présent.',
+      changements: changements
+    };
+  });
+}
+
+/**
+ * Ligne qui suit la dernière ligne où B, C ou E est rempli.
+ * Par sécurité, on descend tant que B à F ne sont pas vides.
+ */
+function premiereLigneLibre(onglet, lignes) {
+  var derniere = 2;
+  lignes.forEach(function (l) {
+    if (l.dateDemande !== '' || l.prenom || l.telephone !== '') derniere = Math.max(derniere, l.numeroLigne);
+  });
+  for (var n = derniere + 1; n < derniere + 50; n++) {
+    var vides = onglet.getRange(n, COL.DATE_DEMANDE, 1, 5).getValues()[0].every(function (v) { return v === ''; });
+    if (vides) return n;
+  }
+  throw new Error('Impossible de trouver une ligne libre en fin d\'onglet.');
 }
 
 /* ---------- Outils d'écriture ---------- */
@@ -339,7 +456,8 @@ function journaliser(action, l, col, avant, apres) {
 }
 
 function texteJournal(v) {
-  return v && typeof v === 'object' && v.date ? v.date : String(v);
+  if (v && typeof v === 'object') return v.date || (v.formule ? 'formule du délai' : '');
+  return String(v);
 }
 
 function lettreColonne(col) {

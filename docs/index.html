@@ -85,6 +85,52 @@
     </form>
   </dialog>
 
+  <dialog class="feuille" id="feuille-visiteur" aria-labelledby="titre-visiteur">
+    <form id="form-visiteur" novalidate>
+      <h2 id="titre-visiteur">Ajouter un visiteur</h2>
+      <p class="aide" id="aide-visiteur"></p>
+
+      <div id="visiteur-saisie">
+        <label class="champ">
+          <span>Prénom *</span>
+          <input id="v-prenom" type="text" autocomplete="off" autocapitalize="words" autocorrect="off" enterkeyhint="next" required>
+        </label>
+        <label class="champ">
+          <span>Téléphone *</span>
+          <input id="v-tel" type="tel" inputmode="tel" autocomplete="off" enterkeyhint="next" placeholder="06 12 34 56 78" required>
+        </label>
+        <label class="champ">
+          <span>Email</span>
+          <input id="v-email" type="email" inputmode="email" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="next">
+        </label>
+        <label class="champ">
+          <span>Nom</span>
+          <input id="v-nom" type="text" autocomplete="off" autocapitalize="words" autocorrect="off" enterkeyhint="done">
+        </label>
+        <label class="champ">
+          <span>Comment as-tu connu le club ? *</span>
+          <select id="v-origine" required></select>
+        </label>
+        <fieldset class="champ choix-oui-non">
+          <legend>16 ans ou plus ? *</legend>
+          <label><input type="radio" name="v-seize" value="Oui"><span>Oui</span></label>
+          <label><input type="radio" name="v-seize" value="Non"><span>Non</span></label>
+        </fieldset>
+        <p class="alerte" id="v-mineur" hidden>Autorisation parentale papier à faire signer avant le cours.</p>
+        <p class="erreur-formulaire" id="v-erreur" aria-live="assertive"></p>
+        <button class="bouton-principal" type="submit" id="v-enregistrer">Enregistrer</button>
+        <button class="bouton-secondaire" type="button" id="v-fermer">Fermer</button>
+      </div>
+
+      <div id="visiteur-doublon" hidden>
+        <p class="texte-doublon" id="v-texte-doublon"></p>
+        <div id="v-choix-doublon"></div>
+        <button class="bouton-secondaire" type="button" id="v-creer-quand-meme">Non, c'est une autre personne : créer sa fiche</button>
+        <button class="bouton-lien" type="button" id="v-retour">Revenir au formulaire</button>
+      </div>
+    </form>
+  </dialog>
+
   <dialog class="feuille" id="feuille-resume" aria-labelledby="titre-resume">
     <h2 id="titre-resume">Cours clôturé</h2>
     <p class="resume-chiffres" id="resume-chiffres"></p>

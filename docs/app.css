@@ -396,7 +396,56 @@ button { font-family: inherit; color: inherit; }
   font-size: 16px;
   color: var(--sumi);
 }
-.champ input:focus { outline: 2px solid var(--indigo); outline-offset: -1px; }
+.champ input:focus, .champ select:focus { outline: 2px solid var(--indigo); outline-offset: -1px; }
+
+.champ select {
+  width: 100%;
+  min-height: 48px;
+  padding: 0 12px;
+  border: 1px solid var(--gris-filet);
+  border-radius: 4px;
+  background: var(--blanc);
+  font-family: inherit;
+  font-size: 16px;
+  color: var(--sumi);
+  -webkit-appearance: none;
+  appearance: none;
+  padding-right: 40px;
+  background: var(--blanc) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' width='24' height='24' fill='none' stroke='%2314161A' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5.5 9.5 L12 16 L18.5 9.5'/%3E%3C/svg%3E") no-repeat right 12px center;
+}
+
+.aide { margin: -8px 0 16px; color: var(--gris-texte); }
+
+.choix-oui-non { border: 0; padding: 0; display: flex; gap: 8px; flex-wrap: wrap; }
+.choix-oui-non legend { font-weight: 700; margin-bottom: 4px; padding: 0; width: 100%; }
+.choix-oui-non label { flex: 1; }
+.choix-oui-non input { position: absolute; opacity: 0; }
+.choix-oui-non span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  border: 2px solid var(--indigo);
+  border-radius: 4px;
+  background: var(--blanc);
+  color: var(--indigo);
+  font-size: 17px;
+  font-weight: 900;
+}
+.choix-oui-non input:checked + span { background: var(--indigo); color: var(--blanc); }
+.choix-oui-non input:focus-visible + span { outline: 2px solid var(--sumi); outline-offset: 2px; }
+
+.alerte {
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border-left: 4px solid var(--indigo);
+  background: var(--blanc);
+  font-weight: 700;
+}
+.erreur-formulaire { min-height: 22px; margin: 0 0 10px; font-weight: 700; color: var(--sumi); }
+.texte-doublon { margin: 0 0 16px; font-size: 17px; font-weight: 500; }
+#v-choix-doublon { display: grid; gap: 8px; }
+#visiteur-doublon .bouton-secondaire { margin-top: 12px; }
 
 .message-reglages { min-height: 20px; margin: 0 0 12px; font-weight: 500; }
 

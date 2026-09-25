@@ -34,6 +34,10 @@ function fauxOnglet(nom, lignes) {
           o.lignes[r - 1][c - 1] = v;
         },
         setNumberFormat: (f) => { o.formats[r + ',' + c] = f; },
+        setFormula: (f) => {
+          while (o.lignes.length < r) o.lignes.push([]);
+          o.lignes[r - 1][c - 1] = f;
+        },
         getDisplayValues: () => o.getRange(r, c, nr, nc).getValues().map((l) => l.map(String))
       };
     },
@@ -250,4 +254,105 @@ test('sécurité : PIN faux refusé, rien n\'est écrit', () => {
   const r = JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify({ pin: '0000', action: 'cloturer', jour: JOUR }) } }).texte);
   assert.equal(r.ok, false);
   assert.equal(JSON.stringify(suivi.lignes), avant);
+});
+
+/* ---------- Visiteur sans pré-inscription ---------- */
+
+const VISITEUR = { action: 'visiteur', jour: JOUR, prenom: 'Sam', nom: 'Nouveau', tel: '+33 6 13 13 13 13',
+  email: ' Sam.Nouveau@Exemple.FR ', origine: 'Une recherche Google', seize: 'Oui' };
+
+test('visiteur : ligne créée en fin d\'onglet, cellule par cellule', () => {
+  const { appel, cellule, suivi } = monter(jeu);
+  const r = appel(VISITEUR);
+  assert.equal(r.ok, true, r.message);
+  assert.equal(r.cree, true);
+  const n = 10; // 9 lignes existantes (en-tête, exemple, 7 personnes)
+  assert.equal(suivi.lignes.length, n);
+  assert.equal(cellule(n, 'DATE_DEMANDE').getTime(), D(2026, 9, 29).getTime());
+  assert.equal(cellule(n, 'PRENOM'), 'Sam');
+  assert.equal(cellule(n, 'NOM'), 'Nouveau');
+  assert.equal(cellule(n, 'TELEPHONE'), '06 13 13 13 13');
+  assert.equal(suivi.formats[n + ',5'], '@');
+  assert.equal(cellule(n, 'EMAIL'), 'sam.nouveau@exemple.fr');
+  assert.equal(cellule(n, 'CRENEAU'), 'mardi 29 septembre');
+  assert.equal(cellule(n, 'DATE_ESSAI').getTime(), D(2026, 9, 29).getTime());
+  assert.equal(cellule(n, 'DELAI'), '=IF(AND(B10<>"",H10<>""),H10-B10,"")');
+  assert.equal(cellule(n, 'VENU'), 'Oui');
+  assert.equal(cellule(n, 'ORIGINE'), 'Une recherche Google');
+  assert.equal(cellule(n, 'UTM_SOURCE') || '', '');
+  assert.equal(cellule(n, 'UTM_CAMPAGNE') || '', '');
+  assert.equal(cellule(n, 'N') || '', '');
+  assert.equal(cellule(n, 'REMARQUES'), 'Venu sans pré-inscription, saisi via app le 29/09 20h04');
+});
+
+test('visiteur : apparaît présent et « sans inscription » dans le cours', () => {
+  const { appel } = monter(jeu);
+  appel(VISITEUR);
+  const c = appel({ action: 'cours', jour: JOUR }).cours.attendus.find((x) => x.prenom === 'Sam');
+  assert.equal(c.etat, 'present');
+  assert.equal(c.spontane, true);
+});
+
+test('visiteur : téléphone déjà connu, rien n\'est créé, on propose la personne', () => {
+  const { appel, suivi } = monter(jeu);
+  const avant = JSON.stringify(suivi.lignes);
+  const r = appel(Object.assign({}, VISITEUR, { tel: '06 11 11 11 11', email: '' }));
+  assert.equal(r.ok, true, r.message);
+  assert.equal(r.cree, false);
+  assert.equal(r.doublons.length, 1);
+  assert.equal(r.doublons[0].prenom, 'Zoé');
+  assert.equal(r.doublons[0].dateDemande, '10/09');
+  assert.equal(JSON.stringify(suivi.lignes), avant);
+  // On pointe la personne existante à la place
+  const p = appel({ action: 'pointer', cle: r.doublons[0].cle, jour: JOUR });
+  assert.equal(p.ok, true, p.message);
+});
+
+test('visiteur : email déjà connu détecté aussi', () => {
+  const { appel, suivi, COL } = monter(jeu);
+  suivi.lignes[3][COL.EMAIL - 1] = 'lea@exemple.fr';
+  const r = appel(Object.assign({}, VISITEUR, { tel: '0699999999', email: 'LEA@exemple.fr' }));
+  assert.equal(r.cree, false);
+  assert.equal(r.doublons[0].prenom, 'Léa');
+});
+
+test('visiteur : forcer crée quand même (même téléphone, autre personne)', () => {
+  const { appel, cellule } = monter(jeu);
+  const r = appel(Object.assign({}, VISITEUR, { tel: '06 11 11 11 11', forcer: true }));
+  assert.equal(r.cree, true);
+  assert.equal(cellule(10, 'PRENOM'), 'Sam');
+});
+
+test('visiteur : données invalides refusées sans rien écrire', () => {
+  const { appel, suivi } = monter(jeu);
+  const avant = JSON.stringify(suivi.lignes);
+  assert.match(appel(Object.assign({}, VISITEUR, { tel: '06 21 13 74 2' })).message, /10 chiffres/);
+  assert.match(appel(Object.assign({}, VISITEUR, { prenom: ' ' })).message, /prénom/);
+  assert.match(appel(Object.assign({}, VISITEUR, { origine: 'Une recherche google' })).message, /liste/);
+  assert.match(appel(Object.assign({}, VISITEUR, { email: 'pas-un-email' })).message, /email/);
+  assert.match(appel(Object.assign({}, VISITEUR, { seize: '' })).message, /16 ans/);
+  assert.equal(JSON.stringify(suivi.lignes), avant);
+});
+
+test('visiteur : moins de 16 ans noté dans les remarques', () => {
+  const { appel, cellule } = monter(jeu);
+  appel(Object.assign({}, VISITEUR, { seize: 'Non' }));
+  assert.match(cellule(10, 'REMARQUES'), /autorisation parentale papier à faire signer/);
+});
+
+test('visiteur : annuler la création vide entièrement la ligne', () => {
+  const { appel, suivi } = monter(jeu);
+  const r = appel(VISITEUR);
+  const a = appel({ action: 'annuler', changements: r.changements });
+  assert.equal(a.ok, true, a.message);
+  assert.ok(suivi.lignes[9].every((v) => v === '' || v === undefined));
+});
+
+test('visiteur : ligne libre trouvée même si le retri laisse une ligne vide au milieu', () => {
+  const { appel, suivi, cellule } = monter(jeu);
+  suivi.lignes.push(new Array(28).fill('')); // ligne 10 vide
+  suivi.lignes.push(Object.assign(new Array(28).fill(''), { 2: 'Tardif', 1: new Date(2026, 8, 20) })); // ligne 11
+  appel(VISITEUR);
+  assert.equal(cellule(12, 'PRENOM'), 'Sam');
+  assert.equal(cellule(11, 'PRENOM'), 'Tardif');
 });

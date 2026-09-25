@@ -1,7 +1,13 @@
-/* BKDL Essais, fonctionnement de la page (étape 2 : pointage et clôture) */
+/* BKDL Essais, fonctionnement de la page (étape 3 : visiteur sans pré-inscription) */
 'use strict';
 
 const CLE_REGLAGES = 'bkdl.reglages';
+
+// Valeurs de secours de la liste Origine (chaînes exactes, sans accents)
+const ORIGINES_SECOURS = ['Un ami, un proche, un collegue', 'Une recherche Google',
+  'Le compte Instagram du club', 'Une publicite Facebook ou Instagram',
+  'Une affiche, un stand, un evenement', 'Un article ou un media local',
+  'Une reponse d\'une IA (ChatGPT, Gemini, Perplexity)', 'Autre'];
 
 const etat = {
   reglages: lireReglages(),
@@ -359,7 +365,7 @@ $('liste-attendus').addEventListener('click', (ev) => {
 });
 $('bouton-cloturer').addEventListener('click', cloturer);
 $('bouton-fermer-resume').addEventListener('click', () => $('feuille-resume').close());
-$('bouton-visiteur').addEventListener('click', () => toast('L\'ajout d\'un visiteur arrive à l\'étape 3.'));
+$('bouton-visiteur').addEventListener('click', ouvrirVisiteur);
 
 /* ---------- Écritures dans le classeur ---------- */
 
@@ -471,6 +477,133 @@ function montrerResume(r, jour) {
   setTimeout(() => { boutonAnnuler.hidden = true; }, 10000);
   $('feuille-resume').showModal();
 }
+
+/* ---------- Visiteur sans pré-inscription ---------- */
+
+/** Même règle que le script : 10 chiffres commençant par 0, sinon vide. */
+function normaliserTel(v) {
+  let c = String(v || '').replace(/\D/g, '');
+  if (c.startsWith('0033')) c = c.slice(4);
+  else if (c.startsWith('33') && (c.length === 11 || c.length === 12)) c = c.slice(2);
+  if (c.length === 9 && c[0] !== '0') c = '0' + c;
+  return c.length === 10 && c[0] === '0' ? c : '';
+}
+
+function ouvrirVisiteur() {
+  if (!etat.donnees) { toast('Charge d\'abord la liste du jour.'); return; }
+  const f = $('form-visiteur');
+  f.reset();
+  const origines = (etat.donnees.listes && etat.donnees.listes.Origine) || ORIGINES_SECOURS;
+  $('v-origine').innerHTML = '<option value="" disabled selected>Choisis une réponse</option>' +
+    origines.map((o) => '<option>' + echapper(o) + '</option>').join('');
+  const aujourdhui = etat.donnees.aujourdhui;
+  $('aide-visiteur').textContent = 'Pour le cours d\'aujourd\'hui, ' +
+    dateEnToutesLettres(aujourdhui).toLowerCase() + '. La personne sera pointée présente.';
+  $('v-mineur').hidden = true;
+  $('v-erreur').textContent = '';
+  montrerEtapeVisiteur('saisie');
+  $('feuille-visiteur').showModal();
+  setTimeout(() => $('v-prenom').focus(), 50);
+}
+
+function montrerEtapeVisiteur(etape) {
+  $('visiteur-saisie').hidden = etape !== 'saisie';
+  $('visiteur-doublon').hidden = etape !== 'doublon';
+}
+
+function saisieVisiteur() {
+  const seize = document.querySelector('input[name="v-seize"]:checked');
+  return {
+    prenom: $('v-prenom').value.trim(),
+    tel: $('v-tel').value.trim(),
+    email: $('v-email').value.trim().toLowerCase(),
+    nom: $('v-nom').value.trim(),
+    origine: $('v-origine').value,
+    seize: seize ? seize.value : ''
+  };
+}
+
+function erreurVisiteur(v) {
+  if (!v.prenom) return ['v-prenom', 'Le prénom est obligatoire.'];
+  if (!normaliserTel(v.tel)) return ['v-tel', 'Le téléphone doit avoir 10 chiffres.'];
+  if (v.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.email)) return ['v-email', 'L\'email n\'est pas valable.'];
+  if (!v.origine) return ['v-origine', 'Choisis comment la personne a connu le club.'];
+  if (!v.seize) return [null, 'Précise si la personne a 16 ans ou plus.'];
+  return null;
+}
+
+document.querySelectorAll('input[name="v-seize"]').forEach((r) => r.addEventListener('change', () => {
+  $('v-mineur').hidden = saisieVisiteur().seize !== 'Non';
+}));
+
+$('form-visiteur').addEventListener('submit', (ev) => {
+  ev.preventDefault();
+  enregistrerVisiteur(false);
+});
+
+async function enregistrerVisiteur(forcer) {
+  const v = saisieVisiteur();
+  const erreur = erreurVisiteur(v);
+  if (erreur) {
+    $('v-erreur').textContent = erreur[1];
+    if (erreur[0]) $(erreur[0]).focus();
+    montrerEtapeVisiteur('saisie');
+    return;
+  }
+  $('v-erreur').textContent = '';
+  const jour = etat.donnees.aujourdhui;
+  const boutons = [$('v-enregistrer'), $('v-creer-quand-meme')];
+  boutons.forEach((b) => { b.disabled = true; });
+  try {
+    const r = await appeler('visiteur', Object.assign({ jour, forcer }, v));
+    if (!r.cree) { montrerDoublons(r.doublons, v, jour); return; }
+    $('feuille-visiteur').close();
+    vibrer();
+    toast(r.message, () => annulerEcriture(r.changements, () => charger(jour)));
+    charger(jour);
+  } catch (e) {
+    montrerEtapeVisiteur('saisie');
+    $('v-erreur').textContent = e.message;
+  } finally {
+    boutons.forEach((b) => { b.disabled = false; });
+  }
+}
+
+/** La personne est déjà dans le suivi : on propose de la pointer au lieu de créer un doublon. */
+function montrerDoublons(doublons, v, jour) {
+  const un = doublons.length === 1;
+  $('v-texte-doublon').textContent = un
+    ? 'Cette personne est déjà dans le suivi : ' + doublons[0].prenom +
+      (doublons[0].dateDemande ? ', demande du ' + doublons[0].dateDemande : '') + '. La pointer présente ?'
+    : 'Ce téléphone ou cet email est déjà dans le suivi pour plusieurs personnes. Laquelle est là ?';
+  $('v-choix-doublon').innerHTML = doublons.map((d, i) =>
+    '<button class="bouton-principal" type="button" data-i="' + i + '">' +
+    'Oui, pointer ' + echapper(d.prenom + (d.nom ? ' ' + d.nom : '')) +
+    (d.dateDemande && !un ? ' (demande du ' + d.dateDemande + ')' : '') + '</button>').join('');
+  $('v-choix-doublon').querySelectorAll('button').forEach((b) => b.addEventListener('click', async () => {
+    const d = doublons[Number(b.dataset.i)];
+    b.disabled = true;
+    try {
+      const r = await appeler('pointer', { cle: d.cle, jour });
+      $('feuille-visiteur').close();
+      vibrer();
+      if (r.changements.length) {
+        toast(d.prenom + ' pointé présent.', () => annulerEcriture(r.changements, () => charger(jour)));
+      } else {
+        toast(r.message);
+      }
+      charger(jour);
+    } catch (e) {
+      b.disabled = false;
+      $('v-texte-doublon').textContent = e.message;
+    }
+  }));
+  montrerEtapeVisiteur('doublon');
+}
+
+$('v-creer-quand-meme').addEventListener('click', () => enregistrerVisiteur(true));
+$('v-retour').addEventListener('click', () => montrerEtapeVisiteur('saisie'));
+$('v-fermer').addEventListener('click', () => $('feuille-visiteur').close());
 
 /* ---------- Démarrage ---------- */
 

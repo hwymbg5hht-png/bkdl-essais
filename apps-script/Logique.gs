@@ -291,6 +291,8 @@ function estAnnulee(l) {
  * @return 'attendu', 'annule', 'reporte' ou null (pas concernée)
  */
 function classerLigne(l, jour, aujourdhui) {
+  // Venu ce jour-là (même si prévu un autre jour) : il fait partie du cours
+  if (estOui(l.venu) && estDateValide(l.dateEssai) && cleJour(l.dateEssai) === jour) return 'attendu';
   var d = datesDeLaLigne(l, aujourdhui);
   var cleEff = d.effective ? cleJour(d.effective.date) : '';
   if (cleEff === jour) return estAnnulee(l) ? 'annule' : 'attendu';
@@ -367,7 +369,9 @@ function coursDuJour(lignes, jour, aujourdhui) {
 function datesDeCours(lignes, aujourdhui) {
   var vues = {};
   lignes.forEach(function (l) {
-    if (!ligneUtile(l) || estAnnulee(l)) return;
+    if (!ligneUtile(l)) return;
+    if (estOui(l.venu) && estDateValide(l.dateEssai)) vues[cleJour(l.dateEssai)] = true;
+    if (estAnnulee(l)) return;
     var d = datesDeLaLigne(l, aujourdhui).effective;
     if (d) vues[cleJour(d.date)] = true;
   });
